@@ -3,48 +3,56 @@ import requests
 import time
 import random
 
-# إعدادات قاعدة البيانات
+# إعدادات قاعدة البيانات - Firebase
 DB_URL = "https://tabaqiya-929e4-default-rtdb.firebaseio.com/"
 
-st.set_page_config(page_title="صراع العروش | علي", layout="wide", page_icon="⚔️")
+st.set_page_config(page_title="صراع العروش | علي وعيوشة", layout="wide", page_icon="👑")
 
-# --- دالات النظام ---
+# --- دالات النظام الأساسية ---
 def fb_get(path): return requests.get(f"{DB_URL}{path}.json").json() or {}
 def fb_update(path, data): requests.patch(f"{DB_URL}{path}.json", json=data)
 def fb_put(path, data): requests.put(f"{DB_URL}{path}.json", json=data)
 
 # --- نظام الدخول واختيار الشخصية ---
 if 'user' not in st.session_state:
-    st.markdown("<h1 style='text-align: center; color: gold;'>🛡️ اختيار المحاربين 🛡️</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: gold;'>🛡️ دخول ميدان الأبطال 🛡️</h1>", unsafe_allow_html=True)
     u_id = st.text_input("ادخل الـ ID الخاص بك:")
-    char = st.radio("اختر شخصيتك القتالية:", ["علاوي 🔥", "عائشة ✨", "زوين ⚡"])
+    
+    # شخصيات اللعب فقط علاوي وعائشة
+    char_option = st.radio("اختر شخصيتك للعب:", ["علاوي 🔥", "عائشة ✨"])
     
     if st.button("دخول الساحة ⚔️"):
         if u_id:
             st.session_state.user = u_id
-            st.session_state.char = char
-            fb_update(f"users/{u_id}", {"char": char, "status": "online"})
+            st.session_state.char = char_option
+            fb_update(f"users/{u_id}", {"char": char_option, "status": "online"})
             st.rerun()
     st.stop()
 
 user = st.session_state.user
 my_char = st.session_state.char
 
-# --- القائمة الجانبية (الأصدقاء والدردشة) ---
+# --- القائمة الجانبية (هنا ضفت لك العبارة بشكل جانبي) ---
 with st.sidebar:
-    st.header(f"👤 {my_char} ({user})")
+    # العبارة الجانبية اللي طلبتها
+    st.markdown("<h2 style='color: #FF4B4B; text-align: center;'>احبك عيوشة 🥹🤍</h2>", unsafe_allow_html=True)
     st.divider()
     
-    # إضافة صديق ودعوة
-    f_id = st.text_input("إضافة صديق بالـ ID:")
+    st.header(f"👤 الشخصية: {my_char}")
+    st.caption(f"ID: {user}")
+    st.divider()
+    
+    f_id = st.text_input("أضف صديق جديد:")
     if st.button("إضافة ✅"):
         fb_update(f"friends/{user}", {f_id: "friend"})
         fb_update(f"friends/{f_id}", {user: "friend"})
     
     friends = fb_get(f"friends/{user}")
     if friends:
-        friend_choice = st.selectbox("دردشة ودعوة:", list(friends.keys()))
+        friend_choice = st.selectbox("اختر صديقاً للمبارزة:", list(friends.keys()))
         chat_id = "".join(sorted([user, friend_choice]))
+        
+        # دردشة سريعة
         c_msg = st.text_input("رسالة خاصة:")
         if st.button("إرسال 🚀"):
             fb_update(f"chats/{chat_id}", {str(int(time.time())): f"{my_char}: {c_msg}"})
@@ -53,27 +61,26 @@ with st.sidebar:
         if chat_data:
             for m in list(chat_data.values())[-3:]: st.caption(m)
         
-        if st.button(f"⚔️ تحدي {friend_choice}"):
+        if st.button(f"⚔️ إرسال تحدي لـ {friend_choice}"):
             fb_update(f"invites/{friend_choice}", {user: "pending"})
 
-# --- محرك اللعبة ---
+# --- محرك اللعبة (12 جولة + تبديل كل 3 جولات) ---
 st.title("🏟️ الميدان الملكي")
 
-# استقبال الدعوات
+# استقبال وقبول التحدي
 invs = fb_get(f"invites/{user}")
 if invs:
     for sender, status in invs.items():
-        if status == "pending" and st.button(f"🔔 قبول تحدي من {sender}"):
-            starter = random.choice([user, sender])
-            g_id = f"game_{user}_{sender}"
-            fb_update(f"invites/{user}", {sender: "accepted"})
-            fb_put(f"games/{g_id}/config", {"p1": user, "p2": sender, "king_start": starter, "round": 1})
-            st.session_state.game_id = g_id
-            # إعداد الحقيبة الأولية (تخزن في جلسة اللاعب)
-            st.session_state.my_deck = [] 
-            st.rerun()
+        if status == "pending":
+            if st.button(f"🔔 قبول تحدي من {sender}", key=f"acc_{sender}"):
+                starter = random.choice([user, sender])
+                g_id = f"game_{user}_{sender}"
+                fb_update(f"invites/{user}", {sender: "accepted"})
+                fb_put(f"games/{g_id}/config", {"p1": user, "p2": sender, "king_start": starter, "round": 1})
+                st.session_state.game_id = g_id
+                st.rerun()
 
-# استرجاع اللعبة
+# كشف اللعبة النشطة
 if 'game_id' not in st.session_state:
     all_invs = fb_get(f"invites/{user}")
     for s, status in all_invs.items():
@@ -87,55 +94,61 @@ if 'game_id' in st.session_state:
     conf = game.get("config", {})
     curr_round = conf.get("round", 1)
     
-    # تبادل الأدوار كل 3 جولات
+    # نظام تبديل الأدوار كل 3 جولات
     phase = (curr_round - 1) // 3
     is_king_start = (user == conf.get('king_start'))
     role = "الملك 👑" if (phase % 2 == 0) == is_king_start else "العبد ⛓️"
 
-    # إدارة الحقيبة (Deck Management)
-    if 'my_deck' not in st.session_state or not st.session_state.my_deck or (curr_round-1)%3 == 0:
+    # إدارة الحقيبة (حذف البطاقة عند التعادل أو اللعب)
+    if 'my_deck' not in st.session_state or (curr_round-1)%3 == 0 and len(st.session_state.my_deck) < 2:
         if "الملك" in role:
             st.session_state.my_deck = ["ملك 👑"] + ["مواطن ⚒️"]*4
         else:
             st.session_state.my_deck = ["عبد ⛓️"] + ["مواطن ⚒️"]*4
 
-    st.subheader(f"📅 الجولة: {curr_round} / 12 | دورك: {role}")
-    st.write(f"بطاقاتك المتبقية: {st.session_state.my_deck}")
+    st.subheader(f"📅 الجولة: {curr_round} / 12")
+    st.info(f"دورك الحالي: {role}")
+    st.write(f"بطاقاتك المتاحة: {st.session_state.my_deck}")
 
-    choice = st.selectbox("اختر بطاقتك للهجوم:", st.session_state.my_deck)
-    bet = st.number_input("الرهان:", 10, 1000, 50)
+    # الاختيار والرهان
+    choice = st.selectbox("اختر ورقة الهجوم:", st.session_state.my_deck, key=f"sel_{curr_round}")
+    bet = st.number_input("الرهان:", 10, 1000, 50, key=f"bet_{curr_round}")
     
-    if st.button("إرسال الهجوم ⚔️"):
+    if st.button("إرسال الهجوم ⚔️", key=f"atk_{curr_round}"):
         fb_update(f"games/{g_id}/moves/{user}", {"card": choice, "bet": bet, "ready": True})
-        st.success("تم التثبيت!")
+        st.success("تم تثبيت الهجوم! انتظر الخصم...")
 
-    if st.button("كشف النتيجة 🔄"):
+    if st.button("كشف النتيجة 🔄", key=f"rev_{curr_round}"):
         moves = fb_get(f"games/{g_id}/moves")
         opp_id = conf['p2'] if user == conf['p1'] else conf['p1']
         
         if opp_id in moves and moves[opp_id].get("ready"):
-            m_c, o_c, o_b = choice, moves[opp_id]['card'], moves[opp_id]['bet']
-            st.markdown(f"#### أنت ({m_c}) VS الخصم ({o_c})")
+            m_c = moves[user]['card']
+            o_c = moves[opp_id]['card']
+            o_b = moves[opp_id]['bet']
             
-            # حتى في التعادل.. البطاقة تُحذف من الحقيبة
-            if choice in st.session_state.my_deck:
-                st.session_state.my_deck.remove(choice)
+            st.markdown(f"### أنت ({m_c}) VS الخصم ({o_c})")
             
+            # حذف البطاقة فوراً (حتى لو تعادل)
+            if m_c in st.session_state.my_deck:
+                st.session_state.my_deck.remove(m_c)
+            
+            # حساب الفوز
             mult = 5 if "عبد" in m_c else 2
-            
             if (m_c == "ملك 👑" and "مواطن" in o_c) or ("مواطن" in m_c and "عبد" in o_c) or ("عبد" in m_c and "ملك" in o_c):
                 st.balloons(); st.success(f"فوز! ربحت {o_b * mult} نقطة")
             elif m_c == o_c:
-                st.info("تعادل! (تم استهلاك البطاقات)")
+                st.warning("تعادل! تم استهلاك البطاقة.")
             else:
                 st.error("خسارة!")
             
-            # تحديث الجولة وتصفير الجاهزية
+            # تحديث الجولة
             fb_update(f"games/{g_id}/config", {"round": curr_round + 1})
             fb_update(f"games/{g_id}/moves/{user}", {"ready": False})
-            time.sleep(1); st.rerun()
+            time.sleep(1.5)
+            st.rerun()
         else:
             st.warning("بانتظار الخصم...")
 
 st.divider()
-st.caption("إصدار علي 2026 - نظام الشخصيات المحدودة")
+st.caption("برمجة وتطوير علي 2026")
