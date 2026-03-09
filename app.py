@@ -32,7 +32,7 @@ with st.sidebar:
         st.rerun()
 
 # 2. منطقة اللعب
-friend_id = st.text_input("🔍 أدخلي ID الصديقة (دعاوي):", placeholder="اكتبي الرمز هنا...")
+friend_id = st.text_input("🔍 أدخلي ID الصديقة (عائشة):", placeholder="اكتبي الرمز هنا...")
 
 if friend_id:
     col1, col2 = st.columns(2)
