@@ -1,38 +1,46 @@
 import streamlit as st
 import requests
-import uuid
+import time
 
-# رابط محرككِ في Firebase
+# رابط قاعدة البيانات الخاصة بكِ
 DB_URL = "https://tabaqiya-929e4-default-rtdb.firebaseio.com/.json"
 
+st.set_page_config(page_title="لعبة الطبقية - النسخة الاحترافية", page_icon="⚔️", layout="wide")
+
+# تصميم الواجهة
+st.markdown("<h1 style='text-align: center; color: #FFD700;'>🏰 صراع الطبقات: الملك والمواطن والعبد</h1>", unsafe_allow_html=True)
+st.divider()
+
+# 1. إعدادات اللاعب والنقاط
 if 'my_id' not in st.session_state:
-    st.session_state.my_id = str(uuid.uuid4())[:6].upper()
+    st.session_state.my_id = ""
+if 'points' not in st.session_state:
     st.session_state.points = 100
+if 'current_round' not in st.session_state:
+    st.session_state.current_round = 1
 
-st.set_page_config(page_title="لعبة الطبقية", page_icon="👑")
-st.markdown("<h1 style='text-align: center; color: gold;'>🏯 لعبة الطبقية</h1>", unsafe_allow_html=True)
+# القائمة الجانبية للمعلومات
+with st.sidebar:
+    st.header("📊 لوحة التحكم")
+    if not st.session_state.my_id:
+        st.session_state.my_id = st.text_input("أدخلي اسمكِ (ID):", placeholder="مثلاً: الملكة")
+    st.metric("💰 رصيدكِ", f"{st.session_state.points} نقطة")
+    st.info(f"📅 الجولة الحالية: {st.session_state.current_round} / 3")
+    if st.button("إعادة ضبط اللعبة 🔄"):
+        st.session_state.points = 100
+        st.session_state.current_round = 1
+        st.rerun()
 
-st.sidebar.markdown(f"### 👤 هويتي (ID): `{st.session_state.my_id}`")
-st.sidebar.write(f"💰 رصيدك: {st.session_state.points}")
-
-friend_id = st.text_input("أدخلي ID الصديقة للبدء:")
+# 2. منطقة اللعب
+friend_id = st.text_input("🔍 أدخلي ID الصديقة (دعاوي):", placeholder="اكتبي الرمز هنا...")
 
 if friend_id:
-    st.success(f"تحدي مع: {friend_id}")
-    choice = st.radio("اختاري بطاقتكِ:", ["الملك 🟡👑", "المواطن 🔵⚒️", "العبد 🔴⛓️"])
-    bet = st.number_input("الرهان:", 5, st.session_state.points, step=5)
-
-    if st.button("إرسال الحركة ⚔️"):
-        move_data = {st.session_state.my_id: {"choice": choice, "bet": bet, "target": friend_id}}
-        requests.patch(DB_URL, json=move_data)
-        st.info("تم الإرسال! بانتظار الخصم...")
-
-if st.button("كشف الأوراق 🔄"):
-    try:
-        data = requests.get(DB_URL).json()
-        if data and friend_id in data:
-            st.warning(f"صديقتكِ لعبت: {data[friend_id]['choice']}")
-        else:
-            st.error("لم يتم إرسال حركة من الطرف الآخر.")
-    except:
-        st.error("تأكدي من الاتصال.")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🃏 اختاري ورقتكِ")
+        choice = st.radio("القوة المتاحة:", ["الملك 👑", "المواطن ⚒️", "العبد ⛓️"], help="الملك يهزم المواطن، المواطن يهزم العبد، والعبد يغدر بالملك!")
+    
+    with col2:
+        st.subheader("💸 الرهان")
+        bet = st.slider("كم نقطة ستخاطرين بها؟", 5, st.session_state.points, 10)
